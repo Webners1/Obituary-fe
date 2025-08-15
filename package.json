@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "build": "echo 'Build completed - Netlify Functions ready!'",
+    "test:netlify": "node scripts/test-netlify-functions.mjs",
     "auth:smoke": "node scripts/auth-smoke.mjs",
     "test:core": "node scripts/test-core-auth.mjs",
     "test:auth": "node scripts/test-auth-complete.mjs",
