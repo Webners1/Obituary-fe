@@ -20,15 +20,26 @@ const authController = {
         return res.status(httpStatus.UNAUTHORIZED).json({ error: 'Invalid credentials' });
       }
 
-      // Fetch user profile from your profiles table
-      const { data: userProfile, error: userError } = await supabaseAdmin
+      // Fetch or sync user profile from your profiles table by authUserId
+      let { data: userProfile } = await supabaseAdmin
         .from('profiles')
         .select('*')
-        .eq('email', email)
-        .single();
+        .eq('authUserId', authData.user.id)
+        .maybeSingle();
 
-      if (userError || !userProfile) {
-        return res.status(httpStatus.NOT_FOUND).json({ error: 'User profile not found' });
+      if (!userProfile) {
+        const now = new Date().toISOString();
+        const payload = {
+          authUserId: authData.user.id,
+          email,
+          name: authData.user.user_metadata?.full_name || '',
+          role: 'User',
+          slugKey: `${email.split('@')[0]}-${Date.now()}`,
+          createdTimestamp: now,
+          modifiedTimestamp: now
+        };
+        const { data: created } = await supabaseAdmin.from('profiles').insert(payload).select('*').single();
+        userProfile = created;
       }
 
       if (userProfile.isBlocked) {
@@ -49,10 +60,7 @@ const authController = {
 
   logout: async (req, res) => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Supabase signOut error:', error);
-      }
+      // Client should discard tokens; server doesn’t need to do anything for JWT logout
       res.status(httpStatus.OK).json({ message: "Logged out successfully!" });
     } catch (error) {
       console.error("Logout error:", error);

@@ -1,8 +1,6 @@
 const path = require("path");
 const { supabaseAdmin } = require("../config/supabase");
-const FLORIST_SLIDE_UPLOADS_PATH = path.join(__dirname, "../floristSlideUploads");
-const sharp = require("sharp");
-const fs = require("fs");
+const { uploadToSupabase } = require("../config/upload-supabase");
 
 const florsitSlideController = {
   addFloristSlide: async (req, res) => {
@@ -18,10 +16,7 @@ const florsitSlideController = {
 
       // If no companyId provided, try to get it from user's company
       if (!finalCompanyId && userIdToUse) {
-        const userIntId = Math.abs(userIdToUse.replace(/-/g, '').substring(0, 6).split('').reduce((a, b) => {
-          a = ((a << 5) - a) + b.charCodeAt(0);
-          return a & a; // Convert to 32bit integer
-        }, 0)) % 2147483647;
+        const userIntId = userIdToUse;
         const { data: company } = await supabaseAdmin
           .from('companypages')
           .select('id')
@@ -45,12 +40,9 @@ const florsitSlideController = {
           await supabaseAdmin.from('floristslides').update({ title, description }).eq('id', id);
 
           if (file) {
-            const imagePath = path.join('floristSlideUploads', String(id), `${path.parse(file.originalname).name}.avif`);
-            const slideFolder = path.join(FLORIST_SLIDE_UPLOADS_PATH, String(id));
-            if (!fs.existsSync(slideFolder)) fs.mkdirSync(slideFolder, { recursive: true });
-
-            await sharp(file.buffer).resize(195, 267, { fit: 'cover' }).toFormat('avif', { quality: 50 }).toFile(path.join(__dirname, '../', imagePath));
-            await supabaseAdmin.from('floristslides').update({ image: imagePath }).eq('id', id);
+            const keyPrefix = `company-${finalCompanyId}/slides/${id}`;
+            const { publicUrl } = await uploadToSupabase(file, 'florist-slides', keyPrefix);
+            await supabaseAdmin.from('floristslides').update({ image: publicUrl }).eq('id', id);
           } else if (typeof image === 'string') {
             await supabaseAdmin.from('floristslides').update({ image }).eq('id', id);
           }
@@ -66,13 +58,10 @@ const florsitSlideController = {
           .single();
         if (error) return res.status(500).json({ message: 'Internal server error.', error: error.message });
 
-        const slideFolder = path.join(FLORIST_SLIDE_UPLOADS_PATH, String(newSlide.id));
-        if (!fs.existsSync(slideFolder)) fs.mkdirSync(slideFolder, { recursive: true });
-
         if (file) {
-          const imagePath = path.join('floristSlideUploads', String(newSlide.id), `${path.parse(file.originalname).name}.avif`);
-          await sharp(file.buffer).resize(195, 267, { fit: 'cover' }).toFormat('avif', { quality: 50 }).toFile(path.join(__dirname, '../', imagePath));
-          await supabaseAdmin.from('floristslides').update({ image: imagePath }).eq('id', newSlide.id);
+          const keyPrefix = `company-${finalCompanyId}/slides/${newSlide.id}`;
+          const { publicUrl } = await uploadToSupabase(file, 'florist-slides', keyPrefix);
+          await supabaseAdmin.from('floristslides').update({ image: publicUrl }).eq('id', newSlide.id);
         } else if (typeof image === 'string') {
           await supabaseAdmin.from('floristslides').update({ image }).eq('id', newSlide.id);
         }
@@ -96,7 +85,7 @@ const florsitSlideController = {
 
       // If no companyId provided, try to get it from user's company
       if (!finalCompanyId && userIdToUse) {
-        const userIntId = parseInt(userIdToUse.replace(/-/g, '').substring(0, 8), 16);
+        const userIntId = userIdToUse;
         const { data: company } = await supabaseAdmin
           .from('companypages')
           .select('id')

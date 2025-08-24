@@ -1,9 +1,5 @@
-const path = require("path");
 const { supabaseAdmin } = require("../config/supabase");
-const { sharpHelpers } = require("../helpers/sharp");
-const { resizeConstants } = require("../constants/resize");
-const fs = require("fs");
-const PACKAGE_UPLOADS = path.join(__dirname, "../packageUploads");
+const { uploadToSupabase } = require("../config/upload-supabase");
 
 const packageController = {
   addPackages: async (req, res) => {
@@ -17,7 +13,7 @@ const packageController = {
 
       // If no companyId provided, try to get it from user's company
       if (!finalCompanyId && userIdToUse) {
-        const userIntId = parseInt(userIdToUse.replace(/-/g, '').substring(0, 8), 16);
+        const userIntId = userIdToUse;
         const { data: company } = await supabaseAdmin
           .from('companypages')
           .select('id')
@@ -41,12 +37,9 @@ const packageController = {
           await supabaseAdmin.from('packages').update({ title, price }).eq('id', id);
 
           if (file) {
-            const imagePath = path.join("packageUploads", String(id), `${path.parse(file.originalname).name}.avif`);
-            const packageFolder = path.join(PACKAGE_UPLOADS, String(id));
-            if (!fs.existsSync(packageFolder)) fs.mkdirSync(packageFolder, { recursive: true });
-
-            await sharpHelpers.processImageToAvif({ buffer: file.buffer, outputPath: path.join(__dirname, "../", imagePath), resize: resizeConstants.packageImageOptions });
-            await supabaseAdmin.from('packages').update({ image: imagePath }).eq('id', id);
+            const keyPrefix = `company-${finalCompanyId}/packages/${id}`;
+            const { publicUrl } = await uploadToSupabase(file, 'packages', keyPrefix);
+            await supabaseAdmin.from('packages').update({ image: publicUrl }).eq('id', id);
           } else if (typeof image === 'string') {
             await supabaseAdmin.from('packages').update({ image }).eq('id', id);
           }
@@ -66,9 +59,9 @@ const packageController = {
         if (!fs.existsSync(packageFolder)) fs.mkdirSync(packageFolder, { recursive: true });
 
         if (file) {
-          const imagePath = path.join("packageUploads", String(created.id), `${path.parse(file.originalname).name}.avif`);
-          await sharpHelpers.processImageToAvif({ buffer: file.buffer, outputPath: path.join(__dirname, "../", imagePath), resize: resizeConstants.packageImageOptions });
-          await supabaseAdmin.from('packages').update({ image: imagePath }).eq('id', created.id);
+          const keyPrefix = `company-${finalCompanyId}/packages/${created.id}`;
+          const { publicUrl } = await uploadToSupabase(file, 'packages', keyPrefix);
+          await supabaseAdmin.from('packages').update({ image: publicUrl }).eq('id', created.id);
         } else if (typeof image === 'string') {
           await supabaseAdmin.from('packages').update({ image }).eq('id', created.id);
         }
@@ -93,7 +86,7 @@ const packageController = {
 
       // If no companyId provided, try to get it from user's company
       if (!finalCompanyId && userIdToUse) {
-        const userIntId = parseInt(userIdToUse.replace(/-/g, '').substring(0, 8), 16);
+        const userIntId = userIdToUse;
         const { data: company } = await supabaseAdmin
           .from('companypages')
           .select('id')

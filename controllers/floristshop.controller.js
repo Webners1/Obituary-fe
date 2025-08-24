@@ -8,11 +8,8 @@ const florsitShopController = {
       const city = req.profile?.city || null;
       if (!userIdToUse) return res.status(401).json({ message: 'Unauthorized' });
 
-      // Convert UUID to integer for legacy table compatibility (use smaller hash to avoid overflow)
-      const userIntId = Math.abs(userIdToUse.replace(/-/g, '').substring(0, 6).split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a; // Convert to 32bit integer
-      }, 0)) % 2147483647;
+      // userIdToUse is integer from profiles.id (authentication middleware maps Supabase Auth -> profiles)
+      const userIntId = userIdToUse;
 
       // Find or create company page for this user
       let { data: company } = await supabaseAdmin

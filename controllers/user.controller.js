@@ -28,14 +28,7 @@ const userController = {
         password
       });
       if (signErr) {
-        console.error('🔥 DETAILED Supabase signUp error:', {
-          message: signErr.message,
-          status: signErr.status,
-          code: signErr.code,
-          details: signErr.details,
-          hint: signErr.hint,
-          fullError: signErr
-        });
+        console.error('🔥 DETAILED Supabase signUp error:', signErr);
         return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           error: 'Failed to sign up user',
           supabaseError: signErr.message,
@@ -44,40 +37,43 @@ const userController = {
         });
       }
 
+      // Map incoming role (tolerate legacy names) to schema values: 'User','Funeral','Florist','SUPERADMIN'
+      const mapRole = (r) => {
+        const v = (r || 'User').toString().toUpperCase();
+        if (v === 'ADMIN' || v === 'SUPERADMIN') return 'SUPERADMIN';
+        if (v === 'FLORIST') return 'Florist';
+        if (v === 'FUNERAL' || v === 'FUNERAL_COMPANY' || v === 'COMPANY') return 'Funeral';
+        return 'User';
+      };
+      const normalizedRole = mapRole(role);
+
+      const now = new Date().toISOString();
       const payload = {
-        id: signup.user.id, // Use the auth user ID
-        name: name, // Match your schema exactly
+        authUserId: signup.user.id, // Supabase Auth UUID
+        name,
         email,
-        role: role || 'USER',
+        role: normalizedRole,
         company,
         region,
         city,
-        "slugKey": email.split('@')[0] + '-' + Date.now(),
-        "createObituaryPermission": false, // Match exact schema
-        "assignKeeperPermission": false,
-        "sendGiftsPermission": false,
-        "sendMobilePermission": false,
-        "isBlocked": false, // Match exact schema
-        "hasFlorist": false,
-        "isPaid": false,
-        "createdTimestamp": new Date().toISOString(),
-        "modifiedTimestamp": new Date().toISOString()
+        slugKey: email.split('@')[0] + '-' + Date.now(),
+        createObituaryPermission: false,
+        assignKeeperPermission: false,
+        sendGiftsPermission: false,
+        sendMobilePermission: false,
+        isBlocked: false,
+        hasFlorist: false,
+        isPaid: false,
+        createdTimestamp: now,
+        modifiedTimestamp: now
       };
       const { data: newUser, error: insErr } = await supabaseAdmin
         .from('profiles')
         .insert(payload)
-        .select()
+        .select('*')
         .single();
       if (insErr) {
-        console.error('🔥 DETAILED Database insert error:', {
-          message: insErr.message,
-          code: insErr.code,
-          details: insErr.details,
-          hint: insErr.hint,
-          table: 'users',
-          payload: payload,
-          fullError: insErr
-        });
+        console.error('🔥 DETAILED Database insert error:', insErr);
         return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
           error: 'Failed to create user profile',
           dbError: insErr.message,
